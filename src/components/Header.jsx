@@ -1,8 +1,19 @@
 function Header() {
   return (
-    <header>
-      <h1>My AI Assistant</h1>
-      <p>Your personal AI companion</p>
+    <header className="header">
+      <div className="assistant-info">
+        <div className="avatar">N</div>
+
+        <div>
+          <h1>Nova</h1>
+          <p>Personal AI Assistant</p>
+        </div>
+      </div>
+
+      <div className="status">
+        <span></span>
+        Online
+      </div>
     </header>
   )
 }

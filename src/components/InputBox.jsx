@@ -1,27 +1,28 @@
 import { useState } from 'react'
 
-function InputBox({ onSend }) {
+function InputBox({ onSend, isLoading }) {
   const [text, setText] = useState('')
 
   function handleSubmit(event) {
-    event.preventDefault()
+  event.preventDefault()
 
-    if (!text.trim()) return
+  if (!text.trim() || isLoading) return
 
-    onSend(text)
-    setText('')
-  }
+  onSend(text)
+  setText('')
+}
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="input-area" onSubmit={handleSubmit}>
       <input
         type="text"
-        placeholder="Type your message..."
+        placeholder="Message Nova..."
         value={text}
         onChange={(event) => setText(event.target.value)}
+        disabled={isLoading}
       />
 
-      <button type="submit">Send</button>
+      <button type="submit" disabled={isLoading}>{isLoading ? 'Thinking...' : 'Send'}</button>
     </form>
   )
 }
