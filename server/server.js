@@ -69,26 +69,42 @@ function extractMemory(text, memory) {
   const patterns = [
     {
       key: 'name',
-      pattern: /my name is\s+([a-zA-Z]+)/i,
+      patterns: [
+        /my name is\s+([a-zA-Z]+)\s*[.!?]?$/i,
+        /i'm\s+([a-zA-Z]+)\s*[.!?]?$/i,
+        /i am\s+([a-zA-Z]+)\s*[.!?]?$/i,
+      ],
     },
     {
       key: 'city',
-      pattern: /i live in\s+([a-zA-Z\s]+)/i,
+      patterns: [
+        /i live in\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
+        /i'm based in\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
+        /i am based in\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
+      ],
     },
     {
       key: 'interest',
-      pattern: /i like\s+([a-zA-Z\s]+)/i,
+      patterns: [
+        /i like\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
+        /my favorite sport is\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
+        /(.+?)\s+is my favorite sport\s*[.!?]?$/i,
+      ],
     },
   ]
 
   for (const item of patterns) {
-    const match = text.match(item.pattern)
+    for (const pattern of item.patterns) {
+      const match = text.match(pattern)
 
-    if (!match) continue
+      if (!match) continue
 
-    const value = match[1].trim()
+      const value = match[1].trim()
 
-    saveFact(memory, item.key, value)
+      saveFact(memory, item.key, value)
+
+      break
+    }
   }
 
   return memory
@@ -112,6 +128,36 @@ function formatMemoryForUser(memory) {
   return memory.facts
     .map((fact) => `${fact.key}: ${fact.value}`)
     .join('\n')
+}
+
+function detectMemoryIntent(text) {
+  const normalizedText = text.toLowerCase().trim()
+
+  if (
+    /what do you remember about me|what do you know about me|tell me what you remember/.test(
+      normalizedText,
+    )
+  ) {
+    return 'read'
+  }
+
+  if (
+    /forget my city|forget that i live in|remove my city|don't remember where i live|dont remember where i live/.test(
+      normalizedText,
+    )
+  ) {
+    return 'delete_city'
+  }
+
+  if (
+      /my name is|i am|i'm|i live in|i'm based in|i am based in|i like|my favorite sport is|is my favorite sport/i.test(
+        normalizedText,
+      )
+    ) {
+      return 'save'
+    }
+
+  return 'none'
 }
 
 function getRecentMessages(messages, limit = 10) {
@@ -138,6 +184,11 @@ app.post('/api/chat', async (req, res) => {
 
     const latestMessage = messages[messages.length - 1]
 
+    const memoryIntent =
+  latestMessage?.sender === 'You'
+    ? detectMemoryIntent(latestMessage.text)
+    : 'none'
+
     if (
       latestMessage?.sender === 'You' &&
       /forget.*live in\s+([a-zA-Z\s]+)/i.test(latestMessage.text)
@@ -155,18 +206,23 @@ app.post('/api/chat', async (req, res) => {
       })
     }
 
-    if (
-      latestMessage?.sender === 'You' &&
-      /what do you remember about me|what do you know about me/i.test(
-        latestMessage.text,
-      )
-    ) {
+    if (memoryIntent === 'read') {
       return res.json({
         reply: formatMemoryForUser(memory),
       })
     }
 
-    if (latestMessage?.sender === 'You') {
+    if (memoryIntent === 'delete_city') {
+      const deleted = deleteFact(memory, 'city')
+
+      return res.json({
+        reply: deleted
+          ? "Got it! I've forgotten your city."
+          : "I don't have your city saved.",
+      })
+    }
+
+    if (memoryIntent === 'save') {
       extractMemory(latestMessage.text, memory)
     }
 

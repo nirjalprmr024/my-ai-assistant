@@ -6,7 +6,11 @@
     },
     {
       "key": "interest",
-      "value": "cricket"
+      "value": "Cricket"
+    },
+    {
+      "key": "city",
+      "value": "Bhopal"
     }
   ]
 }
