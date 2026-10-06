@@ -30,17 +30,60 @@ function saveMemory(memory) {
   )
 }
 
+function normalizeValue(value) {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?]+$/, '')
+    .trim()
+}
+
+function validateFact(key, value) {
+  if (!value) {
+    return false
+  }
+
+  if (value.length > 100) {
+    return false
+  }
+
+  if (key === 'name') {
+    return /^[a-zA-Z\s'-]+$/.test(value)
+  }
+
+  if (key === 'city') {
+    return /^[a-zA-Z\s'-]+$/.test(value)
+  }
+
+  if (key === 'interest') {
+    return /^[a-zA-Z\s'-]+$/.test(value)
+  }
+
+  return false
+}
+
 function saveFact(memory, key, value) {
+  const now = new Date().toISOString()
+
   const existingFact = memory.facts.find(
     (fact) => fact.key === key,
   )
 
   if (existingFact) {
     existingFact.value = value
+
+    if (!existingFact.createdAt) {
+      existingFact.createdAt = now
+    }
+
+    existingFact.updatedAt = now
   } else {
     memory.facts.push({
+      id: key,
       key,
       value,
+      createdAt: now,
+      updatedAt: now,
     })
   }
 
@@ -88,7 +131,7 @@ function extractMemory(text, memory) {
       patterns: [
         /i like\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
         /my favorite sport is\s+([a-zA-Z\s]+)\s*[.!?]?$/i,
-        /(.+?)\s+is my favorite sport\s*[.!?]?$/i,
+        /(.+?)\s+is my favorite sport\s*[.!?]*$/i
       ],
     },
   ]
@@ -99,7 +142,15 @@ function extractMemory(text, memory) {
 
       if (!match) continue
 
-      const value = match[1].trim()
+      const value = normalizeValue(match[1])
+
+      if (!validateFact(item.key, value)) {
+        console.log(
+          `Invalid memory ignored: ${item.key} = ${value}`,
+        )
+
+        continue
+      }
 
       saveFact(memory, item.key, value)
 
