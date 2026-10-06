@@ -38,6 +38,17 @@ function normalizeValue(value) {
     .trim()
 }
 
+function getMemoryImportance(key) {
+  const importanceMap = {
+    name: 10,
+    occupation: 9,
+    city: 8,
+    interest: 6,
+  }
+
+  return importanceMap[key] ?? 5
+}
+
 function validateFact(key, value) {
   if (!value) {
     return false
@@ -64,6 +75,7 @@ function validateFact(key, value) {
 
 function saveFact(memory, key, value) {
   const now = new Date().toISOString()
+  const importance = getMemoryImportance(key)
 
   const existingFact = memory.facts.find(
     (fact) => fact.key === key,
@@ -71,6 +83,7 @@ function saveFact(memory, key, value) {
 
   if (existingFact) {
     existingFact.value = value
+    existingFact.importance = importance
 
     if (!existingFact.createdAt) {
       existingFact.createdAt = now
@@ -82,6 +95,7 @@ function saveFact(memory, key, value) {
       id: key,
       key,
       value,
+      importance,
       createdAt: now,
       updatedAt: now,
     })
@@ -161,13 +175,48 @@ function extractMemory(text, memory) {
   return memory
 }
 
-function buildMemoryContext(memory) {
+function getRelevantMemories(memory, text) {
+  const normalizedText = text.toLowerCase()
+
+  const keywords = {
+    name: ['name', 'who am i'],
+    city: ['city', 'live', 'from', 'where'],
+    interest: ['like', 'interest', 'sport', 'cricket'],
+    occupation: ['job', 'work', 'occupation', 'developer'],
+  }
+
+  const relevantKeys = Object.entries(keywords)
+    .filter(([, words]) =>
+      words.some((word) => normalizedText.includes(word)),
+    )
+    .map(([key]) => key)
+
+  if (relevantKeys.length === 0) {
+    return memory.facts
+      .sort((a, b) => b.importance - a.importance)
+      .slice(0, 3)
+  }
+
+  return memory.facts
+    .filter((fact) => relevantKeys.includes(fact.key))
+    .sort((a, b) => b.importance - a.importance)
+}
+
+function buildMemoryContext(memory, userMessage) {
   if (memory.facts.length === 0) {
     return 'No saved memories yet.'
   }
 
-  return memory.facts
-    .map((fact) => `${fact.key}: ${fact.value}`)
+  const relevantMemories = getRelevantMemories(
+    memory,
+    userMessage,
+  )
+
+  return relevantMemories
+    .map(
+      (fact) =>
+        `${fact.key}: ${fact.value}`,
+    )
     .join('\n')
 }
 
@@ -278,25 +327,33 @@ app.post('/api/chat', async (req, res) => {
     }
 
     const recentMessages = getRecentMessages(messages)
-    const conversation = buildConversation(recentMessages)
+const conversation = buildConversation(recentMessages)
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: conversation,
-      config: {
-        systemInstruction: `
-        You are Nova, a friendly personal AI assistant.
+const memoryContext = buildMemoryContext(
+  memory,
+  latestMessage.text,
+)
 
-        Saved user memories:
-        ${buildMemoryContext(memory)}
+console.log('Relevant memories:')
+console.log(memoryContext)
 
-        Use these memories when relevant.
-        Do not mention the memory system unless the user asks about it.
+const response = await ai.models.generateContent({
+  model: 'gemini-3.6-flash',
+  contents: conversation,
+  config: {
+    systemInstruction: `
+      You are Nova, a friendly personal AI assistant.
 
-        Keep responses clear, natural, and helpful.
-        `,
-      },
-    })
+      Relevant user memories:
+      ${memoryContext}
+
+      Use these memories when relevant.
+      Do not mention the memory system unless the user asks about it.
+
+      Keep responses clear, natural, and helpful.
+    `,
+  },
+})
 
     res.json({
       reply: response.text,
